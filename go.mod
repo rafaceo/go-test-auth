@@ -1,4 +1,4 @@
-module test-user-profile-api
+module github.com/rafaceo/go-test-auth
 
 go 1.23
 
