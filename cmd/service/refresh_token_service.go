@@ -3,18 +3,18 @@ package service
 import (
 	"encoding/json"
 	"github.com/golang-jwt/jwt/v4"
-	cmd "github.com/rafaceo/go-test-auth/cmd/domain"
+	dom "github.com/rafaceo/go-test-auth/cmd/domain"
 	"net/http"
 	"time"
 )
 
-func refreshTokenHandler(w http.ResponseWriter, r *http.Request) {
+func RefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
 
-	var req cmd.RefreshRequest
+	var req dom.RefreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -24,7 +24,7 @@ func refreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, jwt.ErrSignatureInvalid
 		}
-		return cmd.SecretKey, nil
+		return dom.SecretKey, nil
 	})
 
 	if err != nil || !token.Valid {
@@ -48,12 +48,12 @@ func refreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 	newToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"exp": expirationTime,
 	})
-	accessToken, err := newToken.SignedString(cmd.SecretKey)
+	accessToken, err := newToken.SignedString(dom.SecretKey)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(cmd.RefreshResponse{AccessToken: accessToken})
+	json.NewEncoder(w).Encode(dom.RefreshResponse{AccessToken: accessToken})
 }
