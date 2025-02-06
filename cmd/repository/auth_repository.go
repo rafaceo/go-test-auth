@@ -11,6 +11,8 @@ import (
 type AuthRepository interface {
 	GetUserByPhone(ctx context.Context, phone string) (*domain.UserProfile, error)
 	SaveRefreshToken(ctx context.Context, userID string, refreshToken string) error
+	GetUserIDByRefreshToken(ctx context.Context, refreshToken string) (string, error)    // Новый метод
+	UpdateRefreshToken(ctx context.Context, userID string, newRefreshToken string) error // Новый метод
 }
 
 type authRepository struct {
@@ -34,5 +36,23 @@ func (r *authRepository) GetUserByPhone(ctx context.Context, phone string) (*dom
 func (r *authRepository) SaveRefreshToken(ctx context.Context, userID string, refreshToken string) error {
 	query := `UPDATE users_profiles SET refresh_token = $1 WHERE id = $2`
 	_, err := r.db.ExecContext(ctx, query, refreshToken, userID)
+	return err
+}
+
+// Новый метод для получения userID по refresh_token.
+func (r *authRepository) GetUserIDByRefreshToken(ctx context.Context, refreshToken string) (string, error) {
+	var userID string
+	query := `SELECT id FROM users_profiles WHERE refresh_token = $1`
+	err := r.db.QueryRowContext(ctx, query, refreshToken).Scan(&userID)
+	if err != nil {
+		return "", err
+	}
+	return userID, nil
+}
+
+// Новый метод для обновления refresh_token.
+func (r *authRepository) UpdateRefreshToken(ctx context.Context, userID string, newRefreshToken string) error {
+	query := `UPDATE users_profiles SET refresh_token = $1 WHERE id = $2`
+	_, err := r.db.ExecContext(ctx, query, newRefreshToken, userID)
 	return err
 }

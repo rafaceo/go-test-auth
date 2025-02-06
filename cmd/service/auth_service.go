@@ -2,9 +2,15 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+	"net/http"
+	"time"
+
 	//"gitlab.fortebank.com/forte-market/apps/user-profile-api/src/authenticate/domain"
 	//"gitlab.fortebank.com/forte-market/apps/user-profile-api/src/authenticate/repository"
 	"github.com/rafaceo/go-test-auth/cmd/domain"
@@ -55,4 +61,50 @@ func (s *authService) Login(ctx context.Context, phone, password string) (string
 	}
 
 	return accessToken, refreshToken, nil
+}
+
+func (s *authService) RefreshToken(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req domain.RefreshRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.RefreshToken == "" {
+		http.Error(w, "Некорректный запрос", http.StatusBadRequest)
+		return
+	}
+
+	// Проверяем, есть ли этот refresh_token в БД
+	userID, err := s.repo.GetUserIDByRefreshToken(context.Background(), req.RefreshToken)
+	if err != nil {
+		http.Error(w, "Недействительный refresh_token", http.StatusForbidden)
+		return
+	}
+
+	// Генерируем новый access_token (JWT)
+	expirationTime := time.Now().Add(15 * time.Minute).Unix()
+	newAccessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"id":  userID,
+		"exp": expirationTime,
+	})
+	accessToken, err := newAccessToken.SignedString(domain.SecretKey)
+	if err != nil {
+		http.Error(w, "Ошибка сервера", http.StatusInternalServerError)
+		return
+	}
+
+	// Генерируем новый refresh_token (UUID) и обновляем в БД
+	newRefreshToken := uuid.NewString()
+	if err := s.repo.UpdateRefreshToken(context.Background(), userID, newRefreshToken); err != nil {
+		http.Error(w, "Ошибка обновления токена", http.StatusInternalServerError)
+		return
+	}
+
+	// Отправляем новые токены клиенту
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(domain.RefreshResponse{
+		AccessToken:  accessToken,
+		RefreshToken: newRefreshToken,
+	})
 }

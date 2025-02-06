@@ -35,7 +35,7 @@ func main() {
 
 	r.HandleFunc("/api/v4/users", handler.RegisterUser).Methods("POST")
 
-	r.HandleFunc("/api/v4/auth/refresh", service.RefreshTokenHandler).Methods("POST")
+	//r.HandleFunc("/api/v4/auth/refresh", service.RefreshTokenHandler).Methods("POST")
 
 	r.HandleFunc("/api/v4/auth/logout", service.HandlerLogout).Methods("POST")
 
