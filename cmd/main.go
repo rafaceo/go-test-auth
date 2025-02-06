@@ -37,6 +37,8 @@ func main() {
 
 	r.HandleFunc("/api/v4/auth/refresh", service.RefreshTokenHandler).Methods("POST")
 
+	r.HandleFunc("/api/v4/auth/logout", service.HandlerLogout).Methods("POST")
+
 	authHandlers := https.GetAuthHandlers(authService, logger)
 
 	for _, h := range authHandlers {

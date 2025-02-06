@@ -1,6 +1,6 @@
 package domain
 
-// need env for secretKey
+// SecretKey для подписи JWT (должен быть в .env)
 var SecretKey = []byte("")
 
 type RefreshRequest struct {
@@ -8,5 +8,6 @@ type RefreshRequest struct {
 }
 
 type RefreshResponse struct {
-	AccessToken string `json:"accessToken"`
+	AccessToken  string `json:"accessToken"`
+	RefreshToken string `json:"refreshToken"`
 }

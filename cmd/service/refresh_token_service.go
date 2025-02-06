@@ -2,58 +2,60 @@ package service
 
 import (
 	"encoding/json"
-	"github.com/golang-jwt/jwt/v4"
-	dom "github.com/rafaceo/go-test-auth/cmd/domain"
 	"net/http"
 	"time"
+
+	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
+	cmd "github.com/rafaceo/go-test-auth/cmd/db"
+	dom "github.com/rafaceo/go-test-auth/cmd/domain"
 )
 
+// RefreshTokenHandler обрабатывает обновление access_token
 func RefreshTokenHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
 		return
 	}
 
 	var req dom.RefreshRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.RefreshToken == "" {
+		http.Error(w, "Некорректный запрос", http.StatusBadRequest)
 		return
 	}
 
-	token, err := jwt.Parse(req.RefreshToken, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, jwt.ErrSignatureInvalid
-		}
-		return dom.SecretKey, nil
-	})
-
-	if err != nil || !token.Valid {
-		w.WriteHeader(http.StatusForbidden)
+	// Проверяем, есть ли этот refresh_token в БД
+	var userID string
+	err := cmd.Db.QueryRow("SELECT id FROM users_profiles WHERE refresh_token = $1", req.RefreshToken).Scan(&userID)
+	if err != nil {
+		http.Error(w, "Недействительный refresh_token", http.StatusForbidden)
 		return
 	}
 
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok || !token.Valid {
-		w.WriteHeader(http.StatusForbidden)
-		return
-	}
-
-	exp, ok := claims["exp"].(float64)
-	if !ok || time.Now().Unix() > int64(exp) {
-		w.WriteHeader(http.StatusForbidden)
-		return
-	}
-
+	// Генерируем новый access_token (JWT)
 	expirationTime := time.Now().Add(15 * time.Minute).Unix()
-	newToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+	newAccessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"id":  userID,
 		"exp": expirationTime,
 	})
-	accessToken, err := newToken.SignedString(dom.SecretKey)
+	accessToken, err := newAccessToken.SignedString(dom.SecretKey)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		http.Error(w, "Ошибка сервера", http.StatusInternalServerError)
 		return
 	}
 
+	// Генерируем новый refresh_token (UUID) и обновляем в БД
+	newRefreshToken := uuid.NewString()
+	_, err = cmd.Db.Exec("UPDATE users_profiles SET refresh_token = $1 WHERE id = $2", newRefreshToken, userID)
+	if err != nil {
+		http.Error(w, "Ошибка обновления токена", http.StatusInternalServerError)
+		return
+	}
+
+	// Отправляем новые токены клиенту
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(dom.RefreshResponse{AccessToken: accessToken})
+	json.NewEncoder(w).Encode(dom.RefreshResponse{
+		AccessToken:  accessToken,
+		RefreshToken: newRefreshToken,
+	})
 }
