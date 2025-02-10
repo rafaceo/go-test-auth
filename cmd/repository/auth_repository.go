@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"github.com/jmoiron/sqlx"
 
 	//"gitlab.fortebank.com/forte-market/apps/user-profile-api/src/authenticate/domain"
@@ -11,8 +12,9 @@ import (
 type AuthRepository interface {
 	GetUserByPhone(ctx context.Context, phone string) (*domain.UserProfile, error)
 	SaveRefreshToken(ctx context.Context, userID string, refreshToken string) error
-	GetUserIDByRefreshToken(ctx context.Context, refreshToken string) (string, error)    // Новый метод
-	UpdateRefreshToken(ctx context.Context, userID string, newRefreshToken string) error // Новый метод
+	GetUserIDByRefreshToken(ctx context.Context, refreshToken string) (string, error) // Новый метод
+	UpdateRefreshToken(ctx context.Context, userID string, newRefreshToken string) error
+	RevokeToken(ctx context.Context, refreshToken string) error
 }
 
 type authRepository struct {
@@ -55,4 +57,19 @@ func (r *authRepository) UpdateRefreshToken(ctx context.Context, userID string, 
 	query := `UPDATE users_profiles SET refresh_token = $1 WHERE id = $2`
 	_, err := r.db.ExecContext(ctx, query, newRefreshToken, userID)
 	return err
+}
+
+func (r *authRepository) RevokeToken(ctx context.Context, refreshToken string) error {
+	result, err := r.db.ExecContext(ctx, "UPDATE users_profiles SET refresh_token = NULL WHERE refresh_token = $1", refreshToken)
+
+	if err != nil {
+		return fmt.Errorf("ошибка при удалении токена: %w", err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("токен не найден")
+	}
+
+	return nil
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+	"log"
 	"net/http"
 	"time"
 
@@ -19,6 +20,8 @@ import (
 
 type AuthService interface {
 	Login(ctx context.Context, phone, password string) (string, string, error)
+	RefreshToken(w http.ResponseWriter, r *http.Request)
+	Logout(w http.ResponseWriter, r *http.Request)
 }
 
 type authService struct {
@@ -107,4 +110,38 @@ func (s *authService) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		AccessToken:  accessToken,
 		RefreshToken: newRefreshToken,
 	})
+}
+
+func (s *authService) Logout(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Убедимся, что заголовок Content-Type = application/json
+	if r.Header.Get("Content-Type") != "application/json" {
+		http.Error(w, "Неверный Content-Type", http.StatusBadRequest)
+		return
+	}
+
+	var req domain.LogoutRequest
+
+	// Декодируем JSON-запрос
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil || req.RefreshToken == "" {
+		http.Error(w, "Некорректный запрос", http.StatusBadRequest)
+		return
+	}
+
+	// Вызываем метод репозитория для удаления токена
+	err = s.repo.RevokeToken(context.Background(), req.RefreshToken)
+	if err != nil {
+		log.Println("Ошибка при удалении refreshToken:", err)
+		http.Error(w, "Токен не найден", http.StatusForbidden)
+		return
+	}
+
+	// Отправляем успешный ответ
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"message": "Выход выполнен успешно"}`))
 }
