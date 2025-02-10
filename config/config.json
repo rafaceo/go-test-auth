@@ -1,0 +1,7 @@
+{
+  "env": {
+    "jwt_secret": "secret",
+    "access_token_exp_min": 15,
+    "refresh_token_exp_min": 60
+  }
+}

@@ -3,13 +3,8 @@ package domain
 import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
-	"os"
+	conf "github.com/rafaceo/go-test-auth/config"
 	"time"
-)
-
-const (
-	AccessTokenExpiration  = time.Hour * 1        // Живет 1 час
-	RefreshTokenExpiration = (time.Hour * 24) * 7 // Живет 7 дней
 )
 
 type Claims struct {
@@ -20,21 +15,29 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
+func getAccessTokenExpiration() time.Duration {
+	return time.Duration(conf.AllConfigs.Env.AccessTokenExpMin) * time.Minute
+}
+
+func getRefreshTokenExpiration() time.Duration {
+	return time.Duration(conf.AllConfigs.Env.RefreshTokenExpMin) * time.Minute
+}
+
 // Генерация access_token
-func GenerateAccessToken(userID uuid.UUID, phone string, roles, entitlements []string) (string, error) {
+func GenerateAccessToken(userID uuid.UUID, phone string, roles, entitlements []string, jwtSecret string) (string, error) {
 	claims := Claims{
 		UserID:       userID,
 		Phone:        phone,
 		Roles:        roles,
 		Entitlements: entitlements,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(AccessTokenExpiration)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(getAccessTokenExpiration())),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(os.Getenv("JWT_SECRET")))
+	return token.SignedString([]byte(jwtSecret))
 }
 
 // Генерация refresh_token (простая строка UUID)

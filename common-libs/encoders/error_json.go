@@ -3,27 +3,27 @@ package encoders
 import (
 	"context"
 	"encoding/json"
-	errors2 "github.com/rafaceo/go-test-auth/cmd/common-libs/errors"
+	"github.com/rafaceo/go-test-auth/common-libs/errors"
 	"net/http"
 )
 
 func EncodeErrorJSON(_ context.Context, err error, w http.ResponseWriter) {
 	switch err {
-	case errors2.OK:
+	case errors.OK:
 		w.WriteHeader(http.StatusOK)
-	case errors2.Conflict, errors2.CsvError, errors2.CassandraReadError:
+	case errors.Conflict, errors.CsvError, errors.CassandraReadError:
 		w.WriteHeader(http.StatusConflict)
-	case errors2.NotFound:
+	case errors.NotFound:
 		w.WriteHeader(http.StatusNotFound)
-	case errors2.AccessDenied:
+	case errors.AccessDenied:
 		w.WriteHeader(http.StatusForbidden)
-	case errors2.ElasticConnectError, errors2.S3ConnectError, errors2.CassandraConnectError, errors2.RabbitMQConnectError:
+	case errors.ElasticConnectError, errors.S3ConnectError, errors.CassandraConnectError, errors.RabbitMQConnectError:
 		w.WriteHeader(http.StatusServiceUnavailable)
-	case errors2.ContentNotFound:
+	case errors.ContentNotFound:
 		w.WriteHeader(http.StatusNoContent)
-	case errors2.DeserializeBug:
+	case errors.DeserializeBug:
 		w.WriteHeader(http.StatusUnsupportedMediaType)
-	case errors2.InvalidCharacter:
+	case errors.InvalidCharacter:
 		w.WriteHeader(http.StatusBadRequest)
 	default:
 		w.WriteHeader(http.StatusInternalServerError)

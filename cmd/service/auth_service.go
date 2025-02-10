@@ -2,55 +2,70 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
-	"log"
-	"net/http"
-	"time"
-
-	//"gitlab.fortebank.com/forte-market/apps/user-profile-api/src/authenticate/domain"
-	//"gitlab.fortebank.com/forte-market/apps/user-profile-api/src/authenticate/repository"
 	"github.com/rafaceo/go-test-auth/cmd/domain"
 	"github.com/rafaceo/go-test-auth/cmd/repository"
+	"golang.org/x/crypto/bcrypt"
+	"log"
+	"time"
 )
 
 type AuthService interface {
 	Login(ctx context.Context, phone, password string) (string, string, error)
-	RefreshToken(w http.ResponseWriter, r *http.Request)
-	Logout(w http.ResponseWriter, r *http.Request)
+	RefreshToken(ctx context.Context, refreshToken string) (string, string, error)
+	Logout(ctx context.Context, refreshToken string) error
+	Register(ctx context.Context, phone string, email string, password string, firstName string, lastName string) (string, error)
 }
 
 type authService struct {
-	repo repository.AuthRepository
+	repo      repository.AuthRepository
+	jwtSecret string
 }
 
-func NewAuthService(repo repository.AuthRepository) AuthService {
-	return &authService{repo: repo}
+func NewAuthService(repo repository.AuthRepository, jwtSecret string) AuthService {
+	return &authService{repo: repo, jwtSecret: jwtSecret}
+}
+
+func (s *authService) Register(ctx context.Context, phone string, email, password, firstName, lastName string) (string, error) {
+	exists, err := s.repo.UserExists(ctx, phone, email)
+	if err != nil {
+		return "", err
+	}
+	if exists {
+		return "", errors.New("пользователь уже существует")
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+
+	err = s.repo.CreateUser(ctx, phone, email, string(hashedPassword), firstName, lastName)
+	if err != nil {
+		return "", err
+	}
+
+	return "Пользователь успешно зарегистрирован", nil
 }
 
 func (s *authService) Login(ctx context.Context, phone, password string) (string, string, error) {
-	if phone == "" || password == "" {
-		return "", "", errors.New("missing required fields") // Будем возвращать 400
-	}
-
 	user, err := s.repo.GetUserByPhone(ctx, phone)
 	if err != nil {
-		return "", "", errors.New("invalid credentials") // Будем возвращать 401
+		return "", "", err
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
 	if err != nil {
-		return "", "", errors.New("invalid credentials") // Будем возвращать 401
+		return "", "", errors.New("invalid credentials")
 	}
 
 	// Генерация access_token
-	accessToken, err := domain.GenerateAccessToken(user.ID, user.Phone, user.Roles, user.Entitlements)
+	accessToken, err := domain.GenerateAccessToken(user.ID, user.Phone, user.Roles, user.Entitlements, s.jwtSecret)
 	if err != nil {
-		return "", "", errors.New("failed to generate access token") // Будем возвращать 500
+		return "", "", errors.New("failed to generate access token")
 	}
 
 	// Генерация refresh_token
@@ -60,32 +75,19 @@ func (s *authService) Login(ctx context.Context, phone, password string) (string
 	err = s.repo.SaveRefreshToken(ctx, user.ID.String(), refreshToken)
 	if err != nil {
 		fmt.Println("Ошибка сохранения refresh-токена:", err)
-		return "", "", errors.New("failed to save refresh token") // Будем возвращать 500
+		return "", "", errors.New("failed to save refresh token")
 	}
 
 	return accessToken, refreshToken, nil
 }
 
-func (s *authService) RefreshToken(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req domain.RefreshRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.RefreshToken == "" {
-		http.Error(w, "Некорректный запрос", http.StatusBadRequest)
-		return
-	}
-
-	// Проверяем, есть ли этот refresh_token в БД
-	userID, err := s.repo.GetUserIDByRefreshToken(context.Background(), req.RefreshToken)
+func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (string, string, error) {
+	userID, err := s.repo.GetUserIDByRefreshToken(ctx, refreshToken)
 	if err != nil {
-		http.Error(w, "Недействительный refresh_token", http.StatusForbidden)
-		return
+		log.Printf("Error getting user ID by refresh token: %v", err)
+		return "", "", errors.New("invalid refresh token")
 	}
 
-	// Генерируем новый access_token (JWT)
 	expirationTime := time.Now().Add(15 * time.Minute).Unix()
 	newAccessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"id":  userID,
@@ -93,55 +95,17 @@ func (s *authService) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	})
 	accessToken, err := newAccessToken.SignedString(domain.SecretKey)
 	if err != nil {
-		http.Error(w, "Ошибка сервера", http.StatusInternalServerError)
-		return
+		return "", "", errors.New("failed to generate access token")
 	}
 
-	// Генерируем новый refresh_token (UUID) и обновляем в БД
 	newRefreshToken := uuid.NewString()
-	if err := s.repo.UpdateRefreshToken(context.Background(), userID, newRefreshToken); err != nil {
-		http.Error(w, "Ошибка обновления токена", http.StatusInternalServerError)
-		return
+	if err := s.repo.UpdateRefreshToken(ctx, userID, newRefreshToken); err != nil {
+		return "", "", errors.New("failed to update refresh token")
 	}
 
-	// Отправляем новые токены клиенту
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(domain.RefreshResponse{
-		AccessToken:  accessToken,
-		RefreshToken: newRefreshToken,
-	})
+	return accessToken, newRefreshToken, nil
 }
 
-func (s *authService) Logout(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Убедимся, что заголовок Content-Type = application/json
-	if r.Header.Get("Content-Type") != "application/json" {
-		http.Error(w, "Неверный Content-Type", http.StatusBadRequest)
-		return
-	}
-
-	var req domain.LogoutRequest
-
-	// Декодируем JSON-запрос
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil || req.RefreshToken == "" {
-		http.Error(w, "Некорректный запрос", http.StatusBadRequest)
-		return
-	}
-
-	// Вызываем метод репозитория для удаления токена
-	err = s.repo.RevokeToken(context.Background(), req.RefreshToken)
-	if err != nil {
-		log.Println("Ошибка при удалении refreshToken:", err)
-		http.Error(w, "Токен не найден", http.StatusForbidden)
-		return
-	}
-
-	// Отправляем успешный ответ
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"message": "Выход выполнен успешно"}`))
+func (s *authService) Logout(ctx context.Context, refreshToken string) error {
+	return s.repo.DeleteRefreshToken(ctx, refreshToken)
 }

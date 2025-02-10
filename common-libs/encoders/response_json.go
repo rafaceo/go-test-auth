@@ -3,7 +3,7 @@ package encoders
 import (
 	"context"
 	"encoding/json"
-	"github.com/rafaceo/go-test-auth/cmd/common-libs/interfaces"
+	"github.com/rafaceo/go-test-auth/common-libs/interfaces"
 	"net/http"
 )
 

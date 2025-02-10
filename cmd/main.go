@@ -1,17 +1,16 @@
 package main
 
 import (
+	"github.com/joho/godotenv"
 	cmd "github.com/rafaceo/go-test-auth/cmd/db"
+	"github.com/rafaceo/go-test-auth/config"
+	"github.com/rafaceo/go-test-auth/utils"
 	"log"
 	"net/http"
 
 	kitlog "github.com/go-kit/kit/log"
-	"github.com/gorilla/mux"
-
-	"github.com/rafaceo/go-test-auth/cmd/handler"
-	"github.com/rafaceo/go-test-auth/cmd/repository"
-	"github.com/rafaceo/go-test-auth/cmd/service"
-	"github.com/rafaceo/go-test-auth/cmd/transport/https"
+	authRepoPkg "github.com/rafaceo/go-test-auth/cmd/repository/postgres"
+	authServicePkg "github.com/rafaceo/go-test-auth/cmd/service"
 
 	_ "github.com/lib/pq"
 )
@@ -25,29 +24,31 @@ func main() {
 	}
 	defer db.Close()
 
-	// Создание репозитория
-	authRepo := repository.NewAuthRepository(db)
+	if err := config.LoadConfig(); err != nil {
+		log.Fatal("Ошибка загрузки конфигурации:", err)
+	}
+
+	log.Println("Пытаемся загрузить .env...")
+	erro := godotenv.Load(".env")
+	if erro != nil {
+		log.Println("Ошибка загрузки .env:", err)
+	}
 
 	logger := kitlog.NewLogfmtLogger(log.Writer())
-	authService := service.NewAuthService(authRepo)
+	// Создание репозитория
 
-	r := mux.NewRouter()
-
-	r.HandleFunc("/api/v4/users", handler.RegisterUser).Methods("POST")
-
-	r.HandleFunc("/api/v4/auth/refresh", authService.RefreshToken).Methods("POST")
-
-	r.HandleFunc("/api/v4/auth/logout", authService.Logout).Methods("POST")
-
-	authHandlers := https.GetAuthHandlers(authService, logger)
-
-	for _, h := range authHandlers {
-		r.HandleFunc(h.Path, func(w http.ResponseWriter, r *http.Request) {
-			h.Handler.ServeHTTP(w, r)
-		}).Methods(h.Methods...)
+	jwtSecret := config.AllConfigs.Env.JwtSecret
+	log.Println("jwtSecret:", jwtSecret)
+	if config.AllConfigs.Env.JwtSecret == "" {
+		log.Fatal("Ошибка: jwtSecret пуст или не загружен")
 	}
+
+	authRepo := authRepoPkg.NewAuthRepository(db)
+	authService := authServicePkg.NewAuthService(authRepo, jwtSecret)
+
+	router := utils.CreateHTTPRouting(authService, logger, db)
 
 	// Запускаем сервер
 	log.Println("Сервер запущен на порту 8080")
-	log.Fatal(http.ListenAndServe(":8080", r))
+	log.Fatal(http.ListenAndServe(":8080", router))
 }
