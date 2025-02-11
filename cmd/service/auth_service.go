@@ -107,5 +107,11 @@ func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (st
 }
 
 func (s *authService) Logout(ctx context.Context, refreshToken string) error {
-	return s.repo.DeleteRefreshToken(ctx, refreshToken)
+	_, err := s.repo.GetUserIDByRefreshToken(ctx, refreshToken)
+	if err != nil {
+		log.Printf("Error getting user ID by refresh token: %v", err)
+		return errors.New("invalid refresh token")
+	}
+	return s.repo.DeleteRefreshToken(ctx, refreshToken) // Передаём токен, а не userID
+
 }

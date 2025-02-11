@@ -20,4 +20,7 @@ var (
 	CassandraDeleteError  = &ArgError{ArgErrorSystemMarket, 409, "cassandra delete error", "cassandra delete error"}
 	CsvError              = &ArgError{ArgErrorSystemMarket, 409, "Данные входного файла Неправильны", "Неправильный JSON"}
 	DeserializeBug        = &ArgError{ArgErrorSystemMarket, 415, "de/serialization bug", "de/serialization bug"}
+	Forbidden             = &ArgError{ArgErrorSystemMarket, 403, "forbidden", "forbidden"}
+	BadRequestError       = &ArgError{ArgErrorSystemMarket, 400, "Missing required fields: phone, password", "Required fields missing: phone, password"}
+	UnauthorizedError     = &ArgError{ArgErrorSystemMarket, 401, "Incorrect login or password", "Unauthorized: Incorrect login or password"}
 )

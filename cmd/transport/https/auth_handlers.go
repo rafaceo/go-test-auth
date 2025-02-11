@@ -15,6 +15,7 @@ import (
 	"net/http"
 
 	"github.com/rafaceo/go-test-auth/cmd/service"
+	e "github.com/rafaceo/go-test-auth/common-libs/errors"
 )
 
 func GetAuthHandlers(serv service.AuthService, logger kitlog.Logger) []*httphandlers.HTTPHandler {
@@ -124,7 +125,7 @@ func MakeLoginEndpoint(svc service.AuthService) endpoint.Endpoint {
 		req := request.(LoginRequest)
 		accessToken, refreshToken, err := svc.Login(ctx, req.Phone, req.Password)
 		if err != nil {
-			return LoginResponse{Error: err.Error()}, nil
+			return nil, e.UnauthorizedError
 		}
 		return LoginResponse{AccessToken: accessToken, RefreshToken: refreshToken}, nil
 	}
@@ -135,7 +136,7 @@ func MakeLogoutEndpoint(svc service.AuthService) endpoint.Endpoint {
 		req := request.(LogoutRequest)
 		err := svc.Logout(ctx, req.RefreshToken)
 		if err != nil {
-			return LogoutResponse{Error: err.Error()}, nil
+			return nil, e.Forbidden
 		}
 		return LogoutResponse{Message: "Logout successful"}, nil
 	}
@@ -166,7 +167,7 @@ func MakeRefreshTokenEndpoint(svc service.AuthService) endpoint.Endpoint {
 
 		accessToken, refreshToken, err := svc.RefreshToken(ctx, req.RefreshToken)
 		if err != nil {
-			return RefreshResponse{Error: err.Error()}, nil
+			return nil, e.Forbidden
 		}
 		return RefreshResponse{AccessToken: accessToken, RefreshToken: refreshToken}, nil
 	}
@@ -175,9 +176,10 @@ func MakeRefreshTokenEndpoint(svc service.AuthService) endpoint.Endpoint {
 // DecodeLoginRequest декодирует JSON-запрос
 func DecodeLoginRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	var req LoginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return nil, err
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Phone == "" || req.Password == "" {
+		return nil, e.BadRequestError
 	}
+
 	return req, nil
 }
 

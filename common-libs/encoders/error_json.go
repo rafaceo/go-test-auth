@@ -25,6 +25,12 @@ func EncodeErrorJSON(_ context.Context, err error, w http.ResponseWriter) {
 		w.WriteHeader(http.StatusUnsupportedMediaType)
 	case errors.InvalidCharacter:
 		w.WriteHeader(http.StatusBadRequest)
+	case errors.Forbidden:
+		w.WriteHeader(http.StatusForbidden)
+	case errors.BadRequestError:
+		w.WriteHeader(http.StatusBadRequest)
+	case errors.UnauthorizedError:
+		w.WriteHeader(http.StatusUnauthorized)
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
 	}
