@@ -13,4 +13,6 @@ type AuthRepository interface {
 	DeleteRefreshToken(ctx context.Context, refreshToken string) error
 	UserExists(ctx context.Context, phone string, email string) (bool, error)
 	CreateUser(ctx context.Context, phone string, email, password, firstName, lastName string) error
+	CreateFiledAttempt(ctx context.Context, phone string) error
+	CheckBan(ctx context.Context, phone string) error
 }

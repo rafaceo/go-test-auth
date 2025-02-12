@@ -9,3 +9,8 @@ CREATE TABLE IF NOT EXISTS "users_profiles" (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT (now() AT TIME ZONE 'utc') NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT (now() AT TIME ZONE 'utc') NOT NULL
     );
+CREATE TABLE failed_logins (
+                               phone VARCHAR(20) PRIMARY KEY,
+                               attempts INT DEFAULT 0,
+                               blocked_until TIMESTAMP
+);

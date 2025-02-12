@@ -125,6 +125,9 @@ func MakeLoginEndpoint(svc service.AuthService) endpoint.Endpoint {
 		req := request.(LoginRequest)
 		accessToken, refreshToken, err := svc.Login(ctx, req.Phone, req.Password)
 		if err != nil {
+			if errors.Is(err, e.TooManyRequestError) {
+				return nil, err
+			}
 			return nil, e.UnauthorizedError
 		}
 		return LoginResponse{AccessToken: accessToken, RefreshToken: refreshToken}, nil

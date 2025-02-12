@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rafaceo/go-test-auth/cmd/domain"
 	"github.com/rafaceo/go-test-auth/cmd/repository"
+	e "github.com/rafaceo/go-test-auth/common-libs/errors"
 	"golang.org/x/crypto/bcrypt"
 	"log"
 	"time"
@@ -59,9 +60,13 @@ func (s *authService) Login(ctx context.Context, phone, password string) (string
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
 	if err != nil {
+		err := s.repo.CheckBan(ctx, phone)
+		if err != nil {
+			return "", "", e.TooManyRequestError
+		}
+		s.repo.CreateFiledAttempt(ctx, phone)
 		return "", "", errors.New("invalid credentials")
 	}
-
 	// Генерация access_token
 	accessToken, err := domain.GenerateAccessToken(user.ID, user.Phone, user.Roles, user.Entitlements, s.jwtSecret)
 	if err != nil {

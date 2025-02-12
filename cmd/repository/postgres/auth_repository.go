@@ -2,9 +2,13 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"fmt"
 	"github.com/jmoiron/sqlx"
 	"github.com/rafaceo/go-test-auth/cmd/domain"
 	repo "github.com/rafaceo/go-test-auth/cmd/repository"
+	"time"
 )
 
 type authRepository struct {
@@ -69,4 +73,103 @@ func (r *authRepository) DeleteRefreshToken(ctx context.Context, refreshToken st
 	query := `UPDATE users_profiles SET refresh_token = NULL WHERE refresh_token = $1`
 	_, err := r.db.ExecContext(ctx, query, refreshToken)
 	return err
+}
+
+func (r *authRepository) CreateFiledAttempt(ctx context.Context, phone string) error {
+	query := `INSERT INTO failed_logins (phone, attempts, blocked_until) 
+              VALUES ($1, 0, NULL) 
+              ON CONFLICT (phone) DO NOTHING`
+
+	fmt.Println("TRYING TO INSERT ATTEMPT FOR", phone)
+	_, err := r.db.ExecContext(ctx, query, phone)
+
+	if err != nil {
+		fmt.Println("SQL ERROR:", err)
+	} else {
+		fmt.Println("INSERT SUCCESS")
+	}
+
+	query = `UPDATE failed_logins 
+             SET attempts = attempts + 1 
+             WHERE phone = $1 
+             RETURNING attempts`
+
+	var attempts int
+	err = r.db.QueryRowContext(ctx, query, phone).Scan(&attempts)
+	if err != nil {
+		fmt.Println("SQL ERROR (increment attempts):", err)
+		return err
+	}
+
+	var blockDuration = 0 * time.Second // <- Добавил начальное значение
+	if attempts == 3 {
+		blockDuration = 30 * time.Second
+	} else if attempts == 6 {
+		blockDuration = 1 * time.Minute
+	}
+
+	if blockDuration > 0 {
+		blockUntil := time.Now().UTC().Add(blockDuration)
+		query = `UPDATE failed_logins 
+                 SET blocked_until = $1 
+                 WHERE phone = $2`
+		_, err = r.db.ExecContext(ctx, query, blockUntil, phone)
+		if err != nil {
+			fmt.Println("SQL ERROR (block user):", err)
+			return err
+		}
+		fmt.Println("User", phone, "blocked until", blockUntil)
+	}
+
+	fmt.Println("INSERT/UPDATE SUCCESS for", phone, "attempts:", attempts)
+
+	return nil
+}
+
+func (r *authRepository) CheckBan(ctx context.Context, phone string) error {
+	var blockedUntil sql.NullTime
+	var attempts int
+	fmt.Println("sdsdsdsd")
+	query := `SELECT blocked_until, attempts FROM failed_logins WHERE phone = $1`
+	err := r.db.QueryRowContext(ctx, query, phone).Scan(&blockedUntil, &attempts)
+	fmt.Println("att", attempts, "blocked until", blockedUntil)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil
+		}
+		fmt.Println("SQL ERROR (CheckBan):", err)
+		return err
+	}
+
+	if blockedUntil.Valid && time.Now().UTC().Before(blockedUntil.Time) {
+		fmt.Println("CURRENT TIME:", time.Now().UTC())
+		fmt.Println("BLOCK UNTIL :", blockedUntil.Time)
+		fmt.Println("IS STILL BANNED?", time.Now().UTC().Before(blockedUntil.Time))
+
+		return errors.New("Banned user")
+	}
+
+	fmt.Println("attempts:", attempts)
+	// 6 attempts
+	if attempts >= 6 {
+		query = `DELETE FROM failed_logins WHERE phone = $1`
+		_, err = r.db.ExecContext(ctx, query, phone)
+		if err != nil {
+			fmt.Println("SQL ERROR (Delete after ban):", err)
+			return err
+		}
+		fmt.Println("Ban expired, record deleted for", phone)
+		return nil
+	}
+
+	// 3 attempts
+	query = `UPDATE failed_logins SET blocked_until = NULL WHERE phone = $1`
+	_, err = r.db.ExecContext(ctx, query, phone)
+	if err != nil {
+		fmt.Println("SQL ERROR (Unblock after small ban):", err)
+		return err
+	}
+
+	fmt.Println("Ban expired, attempts kept for", phone)
+	return nil
 }

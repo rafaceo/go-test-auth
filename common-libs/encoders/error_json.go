@@ -31,6 +31,8 @@ func EncodeErrorJSON(_ context.Context, err error, w http.ResponseWriter) {
 		w.WriteHeader(http.StatusBadRequest)
 	case errors.UnauthorizedError:
 		w.WriteHeader(http.StatusUnauthorized)
+	case errors.TooManyRequestError:
+		w.WriteHeader(http.StatusTooManyRequests)
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
 	}
