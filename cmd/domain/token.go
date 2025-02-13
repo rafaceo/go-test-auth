@@ -7,20 +7,20 @@ import (
 	"time"
 )
 
-type Claims struct {
-	UserID       uuid.UUID `json:"id"`
-	Phone        string    `json:"phone"`
-	Roles        []string  `json:"roles"`
-	Entitlements []string  `json:"entitlements"`
-	jwt.RegisteredClaims
-}
-
 func getAccessTokenExpiration() time.Duration {
 	return time.Duration(conf.AllConfigs.Env.AccessTokenExpMin) * time.Minute
 }
 
 func getRefreshTokenExpiration() time.Duration {
 	return time.Duration(conf.AllConfigs.Env.RefreshTokenExpMin) * time.Minute
+}
+
+type Claims struct {
+	UserID       uuid.UUID `json:"id"`
+	Phone        string    `json:"phone"`
+	Roles        []string  `json:"roles"`
+	Entitlements []string  `json:"entitlements"`
+	jwt.RegisteredClaims
 }
 
 // Генерация access_token

@@ -7,21 +7,20 @@ import (
 	"github.com/go-kit/kit/endpoint"
 	kitlog "github.com/go-kit/kit/log"
 	kittransport "github.com/go-kit/kit/transport"
-	httptransport "github.com/go-kit/kit/transport/http"
 	kithttp "github.com/go-kit/kit/transport/http"
-	"github.com/rafaceo/go-test-auth/common-libs/encoders"
+	"github.com/rafaceo/go-test-auth/cmd/errors_auth/encoders"
 	"github.com/rafaceo/go-test-auth/common-libs/httphandlers"
 	"log"
 	"net/http"
 
+	e "github.com/rafaceo/go-test-auth/cmd/errors_auth"
 	"github.com/rafaceo/go-test-auth/cmd/service"
-	e "github.com/rafaceo/go-test-auth/common-libs/errors"
 )
 
 func GetAuthHandlers(serv service.AuthService, logger kitlog.Logger) []*httphandlers.HTTPHandler {
 	opts := []kithttp.ServerOption{
 		kithttp.ServerErrorHandler(kittransport.NewLogErrorHandler(logger)),
-		kithttp.ServerErrorEncoder(encoders.EncodeErrorJSON),
+		kithttp.ServerErrorEncoder(encoders.EncodeErrorAUTH),
 	}
 
 	registerHandler := kithttp.NewServer(
@@ -222,29 +221,4 @@ func EncodeResponse(_ context.Context, w http.ResponseWriter, response interface
 
 	_, err = w.Write(prettyJSON)
 	return err
-}
-
-// NewLoginHandler создаёт HTTP-обработчик для логина
-func NewLoginHandler(authService service.AuthService) http.Handler {
-	return httptransport.NewServer(
-		MakeLoginEndpoint(authService),
-		DecodeLoginRequest,
-		EncodeResponse,
-	)
-}
-
-func NewLogoutHandler(authService service.AuthService) http.Handler {
-	return httptransport.NewServer(
-		MakeLogoutEndpoint(authService),
-		DecodeLogoutRequest,
-		EncodeResponse,
-	)
-}
-
-func NewRefreshHandler(authService service.AuthService) http.Handler {
-	return httptransport.NewServer(
-		MakeRefreshTokenEndpoint(authService),
-		DecodeRefreshTokenRequest,
-		EncodeResponse,
-	)
 }
