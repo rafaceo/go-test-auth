@@ -11,6 +11,8 @@ import (
 	kitlog "github.com/go-kit/kit/log"
 	authRepoPkg "github.com/rafaceo/go-test-auth/cmd/repository/postgres"
 	authServicePkg "github.com/rafaceo/go-test-auth/cmd/service"
+	userRepoPkg "github.com/rafaceo/go-test-auth/rights/repository/postgres"
+	userServicePkg "github.com/rafaceo/go-test-auth/rights/service"
 
 	_ "github.com/lib/pq"
 )
@@ -45,8 +47,10 @@ func main() {
 
 	authRepo := authRepoPkg.NewAuthRepository(db)
 	authService := authServicePkg.NewAuthService(authRepo, jwtSecret)
+	userRepo := userRepoPkg.NewUserRepository(db)
+	userService := userServicePkg.NewUserService(userRepo)
 
-	router := utils.CreateHTTPRouting(authService, logger, db)
+	router := utils.CreateHTTPRouting(authService, userService, logger, db)
 
 	// Запускаем сервер
 	log.Println("Сервер запущен на порту 8080")

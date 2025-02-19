@@ -14,3 +14,12 @@ CREATE TABLE failed_logins (
                                attempts INT DEFAULT 0,
                                blocked_until TIMESTAMP
 );
+
+CREATE TABLE users_rights (
+                                id SERIAL PRIMARY KEY,            -- ID пользователя, автоматически увеличивается
+                                name VARCHAR(255) NOT NULL,       -- Имя пользователя
+                                context VARCHAR(255),             -- Контекст пользователя (может быть пустым)
+                                rights JSONB                      -- Права пользователя в формате JSONB
+);
+
+
