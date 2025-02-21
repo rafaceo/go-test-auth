@@ -8,12 +8,12 @@ import (
 	kitlog "github.com/go-kit/kit/log"
 	kittransport "github.com/go-kit/kit/transport"
 	kithttp "github.com/go-kit/kit/transport/http"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/rafaceo/go-test-auth/cmd/errors_auth/encoders"
 	"github.com/rafaceo/go-test-auth/common-libs/httphandlers"
 	"github.com/rafaceo/go-test-auth/rights/service"
 	"net/http"
-	"strconv"
 )
 
 func GetUserHandler(serv service.UserService, logger kitlog.Logger) []*httphandlers.HTTPHandler {
@@ -64,6 +64,13 @@ func GetUserHandler(serv service.UserService, logger kitlog.Logger) []*httphandl
 		opts...,
 	)
 
+	getUserRights := kithttp.NewServer(
+		MakeGetUserRightsEndpoint(serv),
+		DecodeGetUserRightsRequest,
+		EncodeResponse,
+		opts...,
+	)
+
 	return []*httphandlers.HTTPHandler{
 		{
 			Path:    "/api/v4/userss",
@@ -95,11 +102,17 @@ func GetUserHandler(serv service.UserService, logger kitlog.Logger) []*httphandl
 			Handler: getUser,
 			Methods: []string{"GET"},
 		},
+		{
+			Path:    "/api/v4/users/{id}/rights",
+			Handler: getUserRights,
+			Methods: []string{"GET"},
+		},
 	}
 }
 
 type CreateRequest struct {
-	Name string `json:"name"`
+	Phone    string `json:"phone"`
+	Password string `json:"password"`
 }
 
 type CreateResponse struct {
@@ -108,9 +121,9 @@ type CreateResponse struct {
 }
 
 type EditUserRequest struct {
-	ID      uint   `json:"id"`
-	Name    string `json:"name"`
-	Context string `json:"context"`
+	ID       uuid.UUID
+	Phone    string
+	Password string
 }
 
 type EditUserResponse struct {
@@ -120,7 +133,7 @@ type EditUserResponse struct {
 
 type GrantRightsRequest struct {
 	Rights map[string][]string `json:"rights"`
-	ID     uint                `json:"id"`
+	ID     uuid.UUID           `json:"id"`
 }
 
 type GrantRightsResponse struct {
@@ -130,7 +143,7 @@ type GrantRightsResponse struct {
 
 type EditRightsRequest struct {
 	Rights map[string][]string `json:"rights"`
-	ID     uint                `json:"id"`
+	ID     uuid.UUID           `json:"id"`
 }
 
 type EditRightsResponse struct {
@@ -140,7 +153,7 @@ type EditRightsResponse struct {
 
 type RevokeRightsRequest struct {
 	Rights map[string][]string `json:"rights"`
-	ID     uint                `json:"id"`
+	ID     uuid.UUID           `json:"id"`
 }
 
 type RevokeRightsResponse struct {
@@ -149,14 +162,24 @@ type RevokeRightsResponse struct {
 }
 
 type GetUserRequest struct {
-	ID uint `json:"id"`
+	ID uuid.UUID `json:"id"`
 }
 
 type GetUserResponse struct {
-	Name    string              `json:"name,omitempty"`
-	Context string              `json:"context,omitempty"`
-	Rights  map[string][]string `json:"rights,omitempty"`
-	Error   string              `json:"error,omitempty"`
+	Phone     string `json:"phone,omitempty"`
+	Password  string `json:"password,omitempty"`
+	CreatedAt string `json:"created_at,omitempty"`
+	UpdatedAt string `json:"updated_at,omitempty"`
+	Error     string `json:"error,omitempty"`
+}
+
+type GetUserRightsRequest struct {
+	ID uuid.UUID `json:"id"`
+}
+
+type GetUserRightsResponse struct {
+	Rights map[string][]string `json:"rights"`
+	Error  string              `json:"error,omitempty"`
 }
 
 func MakeCreateEndpoint(svc service.UserService) endpoint.Endpoint {
@@ -166,11 +189,11 @@ func MakeCreateEndpoint(svc service.UserService) endpoint.Endpoint {
 			return CreateResponse{Error: "invalid request"}, nil
 		}
 
-		err := svc.CreateUser(ctx, req.Name)
+		err := svc.CreateUser(ctx, req.Phone, req.Password)
 		if err != nil {
 			return CreateResponse{Error: err.Error()}, nil
 		}
-		return CreateResponse{Message: "GoodCreated"}, nil
+		return CreateResponse{Message: "Пользователь успешно зарегистрирован"}, nil
 	}
 }
 
@@ -182,7 +205,7 @@ func MakeEditUserEndpoint(svc service.UserService) endpoint.Endpoint {
 		}
 
 		// Теперь передаем ID, name и context
-		err := svc.EditUser(ctx, req.ID, req.Name, req.Context)
+		err := svc.EditUser(ctx, req.ID, req.Phone, req.Password)
 		if err != nil {
 			return EditUserResponse{Error: err.Error()}, nil
 		}
@@ -242,16 +265,33 @@ func MakeGetUserEndpoint(svc service.UserService) endpoint.Endpoint {
 			return GetUserResponse{Error: "invalid request"}, nil
 		}
 
-		name, context, rights, err := svc.GetUser(ctx, req.ID)
+		phone, passwordHash, createdAt, updatedAt, err := svc.GetUser(ctx, req.ID)
 		if err != nil {
 			return GetUserResponse{Error: err.Error()}, nil
 		}
 
 		return GetUserResponse{
-			Name:    name,
-			Context: context,
-			Rights:  rights,
+			Phone:     phone,
+			Password:  passwordHash,
+			CreatedAt: createdAt,
+			UpdatedAt: updatedAt,
 		}, nil
+	}
+}
+
+func MakeGetUserRightsEndpoint(svc service.UserService) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req, ok := request.(GetUserRightsRequest)
+		if !ok {
+			return GetUserRightsResponse{Error: "invalid request"}, nil
+		}
+
+		rights, err := svc.GetUserRights(ctx, req.ID)
+		if err != nil {
+			return GetUserRightsResponse{Error: err.Error()}, nil
+		}
+
+		return GetUserRightsResponse{Rights: rights}, nil
 	}
 }
 
@@ -266,18 +306,16 @@ func DecodeCreateRequest(_ context.Context, r *http.Request) (interface{}, error
 func DecodeEditUserRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	var req EditUserRequest
 
-	// Используем mux.Vars, чтобы извлечь параметры из пути
 	vars := mux.Vars(r)
 	idStr := vars["id"]
-	id, err := strconv.Atoi(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid id: %v", err)
+		return nil, fmt.Errorf("invalid UUID: %v", err)
 	}
-	req.ID = uint(id)
+	req.ID = id
 
-	// Извлекаем данные из тела запроса
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid request body: %v", err)
 	}
 
 	return req, nil
@@ -288,14 +326,14 @@ func DecodeGrantRightsToUserRequest(_ context.Context, r *http.Request) (interfa
 
 	vars := mux.Vars(r)
 	idStr := vars["id"]
-	id, err := strconv.Atoi(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid id: %v", err)
+		return nil, fmt.Errorf("invalid UUID: %v", err)
 	}
-	req.ID = uint(id)
+	req.ID = id
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid request body: %v", err)
 	}
 
 	return req, nil
@@ -306,14 +344,14 @@ func DecodeEditRightsToUserRequest(_ context.Context, r *http.Request) (interfac
 
 	vars := mux.Vars(r)
 	idStr := vars["id"]
-	id, err := strconv.Atoi(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid id: %v", err)
+		return nil, fmt.Errorf("invalid UUID: %v", err)
 	}
-	req.ID = uint(id)
+	req.ID = id
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid request body: %v", err)
 	}
 
 	return req, nil
@@ -324,14 +362,14 @@ func DecodeRevokeRightsFromUserRequest(_ context.Context, r *http.Request) (inte
 
 	vars := mux.Vars(r)
 	idStr := vars["id"]
-	id, err := strconv.Atoi(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid id: %v", err)
+		return nil, fmt.Errorf("invalid UUID: %v", err)
 	}
-	req.ID = uint(id)
+	req.ID = id
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid request body: %v", err)
 	}
 
 	return req, nil
@@ -340,14 +378,35 @@ func DecodeRevokeRightsFromUserRequest(_ context.Context, r *http.Request) (inte
 func DecodeGetUserRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	var req GetUserRequest
 
-	// Получаем ID из URL-параметров
 	vars := mux.Vars(r)
-	idStr := vars["id"]
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		return nil, fmt.Errorf("invalid id: %v", err)
+	idStr, ok := vars["id"]
+	if !ok {
+		return nil, fmt.Errorf("missing user ID in URL")
 	}
-	req.ID = uint(id)
+
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid UUID: %v", err)
+	}
+	req.ID = id
+
+	return req, nil
+}
+
+func DecodeGetUserRightsRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	var req GetUserRightsRequest
+
+	vars := mux.Vars(r)
+	idStr, ok := vars["id"]
+	if !ok {
+		return nil, fmt.Errorf("missing user ID in URL")
+	}
+
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid UUID: %v", err)
+	}
+	req.ID = id
 
 	return req, nil
 }

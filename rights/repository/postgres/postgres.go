@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	repo "github.com/rafaceo/go-test-auth/rights/repository"
 )
@@ -18,29 +19,40 @@ func NewUserRepository(db *sqlx.DB) repo.UserRepository {
 	return &userRepository{db: db}
 }
 
-func (r *userRepository) CreateUser(ctx context.Context, name string) error {
-	query := `INSERT INTO users_rights (name, context, rights) VALUES ($1, null, null)`
-	_, err := r.db.ExecContext(ctx, query, name)
-	fmt.Println(name, err)
+func (r *userRepository) CreateUser(ctx context.Context, phone string, passwordHash string) error {
+	var exists bool
+	checkQuery := `SELECT EXISTS(SELECT 1 FROM "users" WHERE phone = $1)`
+	err := r.db.GetContext(ctx, &exists, checkQuery, phone)
+	if err != nil {
+		return err
+	}
+
+	if exists {
+		return fmt.Errorf("пользователь с таким номером уже существует")
+	}
+
+	query := `INSERT INTO "users" (id, phone, password_hash, rights, created_at) 
+	          VALUES ($1, $2, $3, $4, NOW())`
+	_, err = r.db.ExecContext(ctx, query, uuid.New(), phone, passwordHash, `{}`)
 	return err
 }
 
-func (r *userRepository) EditUser(ctx context.Context, id uint, name, context string) error {
+func (r *userRepository) EditUser(ctx context.Context, id uuid.UUID, phone, password string) error {
 	var exists bool
-	checkQuery := `SELECT EXISTS(SELECT 1 FROM users_rights WHERE id = $1)`
+	checkQuery := `SELECT EXISTS(SELECT 1 FROM "users" WHERE id = $1)`
 	err := r.db.QueryRowContext(ctx, checkQuery, id).Scan(&exists)
 	if err != nil {
 		return err
 	}
 	if !exists {
-		return errors.New("user rights with given id not found")
+		return errors.New("user with given id not found")
 	}
 
-	query := `UPDATE users_rights SET name = $1, context = $2 WHERE id = $3`
-	_, err = r.db.ExecContext(ctx, query, name, context, id)
+	query := `UPDATE "users" SET phone = $1, password_hash = $2 WHERE id = $3`
+	_, err = r.db.ExecContext(ctx, query, phone, password, id)
 	return err
 }
-func (r *userRepository) GrantRightsToUser(ctx context.Context, id uint, rights map[string][]string) error {
+func (r *userRepository) GrantRightsToUser(ctx context.Context, id uuid.UUID, rights map[string][]string) error {
 	rightsJSON, err := json.Marshal(rights)
 	if err != nil {
 		return err
@@ -48,7 +60,7 @@ func (r *userRepository) GrantRightsToUser(ctx context.Context, id uint, rights 
 
 	// Запрос обновления прав, если текущие права NULL или пустые
 	query := `
-		UPDATE users_rights 
+		UPDATE "users" 
 		SET rights = $1 
 		WHERE id = $2 AND (rights IS NULL OR rights::text = '{}')`
 
@@ -68,14 +80,14 @@ func (r *userRepository) GrantRightsToUser(ctx context.Context, id uint, rights 
 	return nil
 }
 
-func (r *userRepository) EditRightsToUser(ctx context.Context, id uint, rights map[string][]string) error {
+func (r *userRepository) EditRightsToUser(ctx context.Context, id uuid.UUID, rights map[string][]string) error {
 	rightsJSON, err := json.Marshal(rights)
 	if err != nil {
 		return err
 	}
 
 	var exists bool
-	checkQuery := `SELECT EXISTS(SELECT 1 FROM users_rights WHERE id = $1)`
+	checkQuery := `SELECT EXISTS(SELECT 1 FROM "users" WHERE id = $1)`
 	err = r.db.QueryRowContext(ctx, checkQuery, id).Scan(&exists)
 	if err != nil {
 		return err
@@ -84,7 +96,7 @@ func (r *userRepository) EditRightsToUser(ctx context.Context, id uint, rights m
 		return errors.New("user rights with given id not found")
 	}
 
-	query := `UPDATE users_rights SET rights = $1 WHERE id = $2`
+	query := `UPDATE "users" SET rights = $1 WHERE id = $2`
 	_, err = r.db.ExecContext(ctx, query, rightsJSON, id)
 	if err != nil {
 		return err
@@ -93,9 +105,9 @@ func (r *userRepository) EditRightsToUser(ctx context.Context, id uint, rights m
 	return nil
 }
 
-func (r *userRepository) RevokeRightsFromUser(ctx context.Context, id uint, rights map[string][]string) error {
+func (r *userRepository) RevokeRightsFromUser(ctx context.Context, id uuid.UUID, rights map[string][]string) error {
 	var currentRightsJSON []byte
-	query := `SELECT rights FROM users_rights WHERE id = $1`
+	query := `SELECT rights FROM "users" WHERE id = $1`
 	err := r.db.QueryRowContext(ctx, query, id).Scan(&currentRightsJSON)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -148,30 +160,52 @@ func (r *userRepository) RevokeRightsFromUser(ctx context.Context, id uint, righ
 		return err
 	}
 
-	updateQuery := `UPDATE users_rights SET rights = $1 WHERE id = $2`
+	updateQuery := `UPDATE "users" SET rights = $1 WHERE id = $2`
 	_, err = r.db.ExecContext(ctx, updateQuery, updatedRightsJSON, id)
 	return err
 }
 
-func (r *userRepository) GetUser(ctx context.Context, id uint) (string, string, map[string][]string, error) {
-	query := `SELECT name, context, rights FROM users_rights WHERE id = $1`
+func (r *userRepository) GetUser(ctx context.Context, id uuid.UUID) (string, string, string, string, error) {
+	// Проверяем, что переданный UUID корректный
+	if id == uuid.Nil {
+		return "", "", "", "", fmt.Errorf("invalid UUID: cannot be empty")
+	}
 
-	var name, context string
+	query := `SELECT phone, password_hash, created_at, updated_at FROM "users" WHERE id = $1`
+
+	var phone, passwordHash, createdAt, updatedAt string
+	err := r.db.QueryRowContext(ctx, query, id).Scan(&phone, &passwordHash, &createdAt, &updatedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", "", "", "", fmt.Errorf("user not found")
+		}
+		return "", "", "", "", fmt.Errorf("database error: %w", err)
+	}
+
+	return phone, passwordHash, createdAt, updatedAt, nil
+}
+
+func (r *userRepository) GetUserRights(ctx context.Context, id uuid.UUID) (map[string][]string, error) {
+	query := `SELECT rights FROM "users" WHERE id = $1`
+
 	var rightsJSON []byte
-	err := r.db.QueryRowContext(ctx, query, id).Scan(&name, &context, &rightsJSON)
+	err := r.db.QueryRowContext(ctx, query, id).Scan(&rightsJSON)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return "", "", nil, errors.New("user not found")
+			return nil, errors.New("user not found")
 		}
-		return "", "", nil, err
+		return nil, err
 	}
 
-	rights := make(map[string][]string)
+	// Декодируем JSON в map
+	var rights map[string][]string
 	if len(rightsJSON) > 0 {
 		if err := json.Unmarshal(rightsJSON, &rights); err != nil {
-			return "", "", nil, err
+			return nil, fmt.Errorf("failed to parse rights JSON: %v", err)
 		}
+	} else {
+		rights = make(map[string][]string) // Если пусто, возвращаем пустую мапу
 	}
 
-	return name, context, rights, nil
+	return rights, nil
 }

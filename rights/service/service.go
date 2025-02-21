@@ -3,10 +3,12 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
+	"github.com/google/uuid"
 	"github.com/rafaceo/go-test-auth/rights/repository"
+	"golang.org/x/crypto/bcrypt"
 	"log"
 	"regexp"
+	"strings"
 )
 
 var allowedSections = map[string]bool{
@@ -28,12 +30,13 @@ var allowedPermissions = map[string]bool{
 }
 
 type UserService interface {
-	CreateUser(ctx context.Context, name string) error
-	EditUser(ctx context.Context, id uint, name, context string) error
-	GrantRightsToUser(ctx context.Context, id uint, rights map[string][]string) error
-	EditRightsToUser(ctx context.Context, id uint, rights map[string][]string) error
-	RevokeRightsFromUser(ctx context.Context, id uint, rights map[string][]string) error
-	GetUser(ctx context.Context, id uint) (string, string, map[string][]string, error)
+	CreateUser(ctx context.Context, phone string, passwordHash string) error
+	EditUser(ctx context.Context, id uuid.UUID, phone, password string) error
+	GrantRightsToUser(ctx context.Context, id uuid.UUID, rights map[string][]string) error
+	EditRightsToUser(ctx context.Context, id uuid.UUID, rights map[string][]string) error
+	RevokeRightsFromUser(ctx context.Context, id uuid.UUID, rights map[string][]string) error
+	GetUser(ctx context.Context, id uuid.UUID) (string, string, string, string, error)
+	GetUserRights(ctx context.Context, id uuid.UUID) (map[string][]string, error)
 }
 
 type userService struct {
@@ -45,33 +48,44 @@ func NewUserService(repo repository.UserRepository) UserService {
 	return &userService{repo: repo}
 }
 
-func (s *userService) CreateUser(ctx context.Context, name string) error {
-	fmt.Println()
-	if name == "" {
-		return errors.New("name cannot be fuck")
+func (s *userService) CreateUser(ctx context.Context, phone string, passwordHash string) error {
+	re := regexp.MustCompile(`^\+?\d{10,}$`)
+	if !re.MatchString(phone) {
+		return errors.New("invalid phone number: must contain only digits, optionally start with '+', and have at least 10 digits")
+	}
+	strings.ReplaceAll(phone, " ", "")
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(passwordHash), bcrypt.DefaultCost)
+	if err != nil {
+		return err
 	}
 
-	err := s.repo.CreateUser(ctx, name)
+	err = s.repo.CreateUser(ctx, phone, string(hashedPassword))
 	if err != nil {
-		log.Printf("Error creating user: %v", err)
 		return err
 	}
 
 	return nil
 }
 
-func (s *userService) EditUser(ctx context.Context, id uint, name, context string) error {
-	if name == "" || context == "" {
-		return errors.New("name and context cannot be empty")
+func (s *userService) EditUser(ctx context.Context, id uuid.UUID, phone, password string) error {
+
+	if phone == "" || password == "" {
+		return errors.New("phone and password cannot be empty")
 	}
 
-	merchantRegex := regexp.MustCompile(`^MERCHANT_\d+$`)
+	re := regexp.MustCompile(`^\+?\d{10,}$`)
+	if !re.MatchString(phone) {
+		return errors.New("invalid phone number: must contain only digits, optionally start with '+', and have at least 10 digits")
+	}
+	strings.ReplaceAll(phone, " ", "")
 
-	if context != "MERCHANT_ALL" && !merchantRegex.MatchString(context) {
-		return errors.New("invalid context: must be MERCHANT_ALL or MERCHANT_{merchant_id}")
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("Error hashing password: %v", err)
+		return errors.New("failed to hash password")
 	}
 
-	err := s.repo.EditUser(ctx, id, name, context)
+	err = s.repo.EditUser(ctx, id, phone, string(hashedPassword))
 	if err != nil {
 		log.Printf("Error editing user: %v", err)
 		return err
@@ -80,7 +94,7 @@ func (s *userService) EditUser(ctx context.Context, id uint, name, context strin
 	return nil
 }
 
-func (s *userService) GrantRightsToUser(ctx context.Context, id uint, rights map[string][]string) error {
+func (s *userService) GrantRightsToUser(ctx context.Context, id uuid.UUID, rights map[string][]string) error {
 	if len(rights) == 0 {
 		return errors.New("rights cannot be empty")
 	}
@@ -109,7 +123,7 @@ func (s *userService) GrantRightsToUser(ctx context.Context, id uint, rights map
 	return nil
 }
 
-func (s *userService) EditRightsToUser(ctx context.Context, id uint, rights map[string][]string) error {
+func (s *userService) EditRightsToUser(ctx context.Context, id uuid.UUID, rights map[string][]string) error {
 	if len(rights) == 0 {
 		return errors.New("rights cannot be empty")
 	}
@@ -135,7 +149,7 @@ func (s *userService) EditRightsToUser(ctx context.Context, id uint, rights map[
 	return nil
 }
 
-func (s *userService) RevokeRightsFromUser(ctx context.Context, id uint, rights map[string][]string) error {
+func (s *userService) RevokeRightsFromUser(ctx context.Context, id uuid.UUID, rights map[string][]string) error {
 	if len(rights) == 0 {
 		return errors.New("rights cannot be empty")
 	}
@@ -161,11 +175,20 @@ func (s *userService) RevokeRightsFromUser(ctx context.Context, id uint, rights 
 	return nil
 }
 
-func (s *userService) GetUser(ctx context.Context, id uint) (string, string, map[string][]string, error) {
-	name, context, rights, err := s.repo.GetUser(ctx, id)
+func (s *userService) GetUser(ctx context.Context, id uuid.UUID) (string, string, string, string, error) {
+	phone, passwordHash, createdAt, updatedAt, err := s.repo.GetUser(ctx, id)
 	if err != nil {
 		log.Printf("Error retrieving user: %v", err)
-		return "", "", nil, err
+		return "", "", "", "", err
 	}
-	return name, context, rights, nil
+	return phone, passwordHash, createdAt, updatedAt, nil
+}
+
+func (s *userService) GetUserRights(ctx context.Context, id uuid.UUID) (map[string][]string, error) {
+	rights, err := s.repo.GetUserRights(ctx, id)
+	if err != nil {
+		log.Printf("Error retrieving user rights: %v", err)
+		return nil, err
+	}
+	return rights, nil
 }

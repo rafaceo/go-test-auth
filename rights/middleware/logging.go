@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"github.com/rafaceo/go-test-auth/rights/service"
 	"time"
 
@@ -17,39 +18,40 @@ func NewLoggingMiddleware(logger log.Logger, next service.UserService) service.U
 	return &loggingService{logger: logger, next: next}
 }
 
-func (l *loggingService) CreateUser(ctx context.Context, name string) (err error) {
+func (l *loggingService) CreateUser(ctx context.Context, phone string, passwordHash string) (err error) {
 	defer func(begin time.Time) {
 		if err != nil {
 			_ = l.logger.Log(
 				"method", "CreateUser",
 				"took", time.Since(begin),
 				"context", ctx,
-				"name", name,
+				"phone", phone,
+				"passwordHash", passwordHash,
 				"err", err,
 			)
 		}
 	}(time.Now())
 
-	return l.next.CreateUser(ctx, name)
+	return l.next.CreateUser(ctx, phone, passwordHash)
 }
 
-func (l *loggingService) EditUser(ctx context.Context, id uint, name, context string) (err error) {
+func (l *loggingService) EditUser(ctx context.Context, id uuid.UUID, phone, password string) (err error) {
 	defer func(begin time.Time) {
 		if err != nil {
 			_ = l.logger.Log(
 				"method", "EditUser",
 				"took", time.Since(begin),
-				"context", context,
 				"id", id,
-				"name", name,
+				"phone", phone,
+				"password", password,
 				"err", err,
 			)
 		}
 	}(time.Now())
 
-	return l.next.EditUser(ctx, id, name, context)
+	return l.next.EditUser(ctx, id, phone, password)
 }
-func (l *loggingService) GrantRightsToUser(ctx context.Context, id uint, rights map[string][]string) (err error) {
+func (l *loggingService) GrantRightsToUser(ctx context.Context, id uuid.UUID, rights map[string][]string) (err error) {
 	defer func(begin time.Time) {
 		if err != nil {
 			_ = l.logger.Log(
@@ -66,7 +68,7 @@ func (l *loggingService) GrantRightsToUser(ctx context.Context, id uint, rights 
 	return l.next.GrantRightsToUser(ctx, id, rights)
 }
 
-func (l *loggingService) EditRightsToUser(ctx context.Context, id uint, rights map[string][]string) (err error) {
+func (l *loggingService) EditRightsToUser(ctx context.Context, id uuid.UUID, rights map[string][]string) (err error) {
 	defer func(begin time.Time) {
 		if err != nil {
 			_ = l.logger.Log(
@@ -82,7 +84,7 @@ func (l *loggingService) EditRightsToUser(ctx context.Context, id uint, rights m
 	return l.next.EditRightsToUser(ctx, id, rights)
 }
 
-func (l *loggingService) RevokeRightsFromUser(ctx context.Context, id uint, rights map[string][]string) (err error) {
+func (l *loggingService) RevokeRightsFromUser(ctx context.Context, id uuid.UUID, rights map[string][]string) (err error) {
 	defer func(begin time.Time) {
 		if err != nil {
 			_ = l.logger.Log(
@@ -98,21 +100,38 @@ func (l *loggingService) RevokeRightsFromUser(ctx context.Context, id uint, righ
 	return l.next.RevokeRightsFromUser(ctx, id, rights)
 }
 
-func (l *loggingService) GetUser(ctx context.Context, id uint) (name string, context string, rights map[string][]string, err error) {
+func (l *loggingService) GetUser(ctx context.Context, id uuid.UUID) (phone string, password string, created_at string, updated_at string, err error) {
 	defer func(begin time.Time) {
 		if err != nil {
 			_ = l.logger.Log(
 				"method", "GetUser",
 				"id", id,
-				"name", name,
-				"context", context,
-				"rights", rights,
+				"phone", phone,
+				"password", password,
+				"createdAt", created_at,
+				"updatedAt", updated_at,
 				"took", time.Since(begin),
 				"err", err,
 			)
 		}
 	}(time.Now())
 
-	name, context, rights, err = l.next.GetUser(ctx, id)
+	phone, password, created_at, updated_at, err = l.next.GetUser(ctx, id)
+	return
+}
+
+func (l *loggingService) GetUserRights(ctx context.Context, id uuid.UUID) (rights map[string][]string, err error) {
+	defer func(begin time.Time) {
+		if err != nil {
+			_ = l.logger.Log(
+				"method", "GetUserRights",
+				"id", id,
+				"took", time.Since(begin),
+				"rights", rights,
+				"err", err,
+			)
+		}
+	}(time.Now())
+	rights, err = l.next.GetUserRights(ctx, id)
 	return
 }

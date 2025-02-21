@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"time"
 
 	"github.com/go-kit/kit/metrics"
@@ -24,7 +25,7 @@ func NewInstrumentingMiddleware(counter metrics.Counter, latency metrics.Histogr
 	}
 }
 
-func (s *instrumentingService) CreateUser(ctx context.Context, name string) (err error) {
+func (s *instrumentingService) CreateUser(ctx context.Context, phone string, passwordHash string) (err error) {
 	defer func(begin time.Time) {
 		labels := []string{"method", "CreateUser"}
 		s.requestCount.With(labels...).Add(1)
@@ -34,10 +35,10 @@ func (s *instrumentingService) CreateUser(ctx context.Context, name string) (err
 		s.requestLatency.With(labels...).Observe(time.Since(begin).Seconds())
 	}(time.Now())
 
-	return s.next.CreateUser(ctx, name)
+	return s.next.CreateUser(ctx, phone, passwordHash)
 }
 
-func (s *instrumentingService) EditUser(ctx context.Context, id uint, name, context string) (err error) {
+func (s *instrumentingService) EditUser(ctx context.Context, id uuid.UUID, phone, password string) (err error) {
 	defer func(begin time.Time) {
 		labels := []string{"method", "EditUser"}
 		s.requestCount.With(labels...).Add(1)
@@ -47,10 +48,10 @@ func (s *instrumentingService) EditUser(ctx context.Context, id uint, name, cont
 		s.requestLatency.With(labels...).Observe(time.Since(begin).Seconds())
 	}(time.Now())
 
-	return s.next.EditUser(ctx, id, name, context)
+	return s.next.EditUser(ctx, id, phone, password)
 }
 
-func (s *instrumentingService) GrantRightsToUser(ctx context.Context, id uint, rights map[string][]string) (err error) {
+func (s *instrumentingService) GrantRightsToUser(ctx context.Context, id uuid.UUID, rights map[string][]string) (err error) {
 	defer func(begin time.Time) {
 		labels := []string{"method", "GrantRightsToUser"}
 		s.requestCount.With(labels...).Add(1)
@@ -63,7 +64,7 @@ func (s *instrumentingService) GrantRightsToUser(ctx context.Context, id uint, r
 	return s.next.GrantRightsToUser(ctx, id, rights)
 }
 
-func (s *instrumentingService) EditRightsToUser(ctx context.Context, id uint, rights map[string][]string) (err error) {
+func (s *instrumentingService) EditRightsToUser(ctx context.Context, id uuid.UUID, rights map[string][]string) (err error) {
 	defer func(begin time.Time) {
 		labels := []string{"method", "EditRightsToUser"}
 		s.requestCount.With(labels...).Add(1)
@@ -76,7 +77,7 @@ func (s *instrumentingService) EditRightsToUser(ctx context.Context, id uint, ri
 	return s.next.EditRightsToUser(ctx, id, rights)
 }
 
-func (s *instrumentingService) RevokeRightsFromUser(ctx context.Context, id uint, rights map[string][]string) (err error) {
+func (s *instrumentingService) RevokeRightsFromUser(ctx context.Context, id uuid.UUID, rights map[string][]string) (err error) {
 	defer func(begin time.Time) {
 		labels := []string{"method", "RevokeRightsFromUser"}
 		s.requestCount.With(labels...).Add(1)
@@ -89,7 +90,7 @@ func (s *instrumentingService) RevokeRightsFromUser(ctx context.Context, id uint
 	return s.next.RevokeRightsFromUser(ctx, id, rights)
 }
 
-func (s *instrumentingService) GetUser(ctx context.Context, id uint) (name string, context string, rights map[string][]string, err error) {
+func (s *instrumentingService) GetUser(ctx context.Context, id uuid.UUID) (phone string, password string, created_at string, updated_at string, err error) {
 	defer func(begin time.Time) {
 		labels := []string{"method", "GetUser"}
 		s.requestCount.With(labels...).Add(1)
@@ -99,6 +100,20 @@ func (s *instrumentingService) GetUser(ctx context.Context, id uint) (name strin
 		s.requestLatency.With(labels...).Observe(time.Since(begin).Seconds())
 	}(time.Now())
 
-	name, context, rights, err = s.next.GetUser(ctx, id)
+	phone, password, created_at, updated_at, err = s.next.GetUser(ctx, id)
+	return
+}
+
+func (s *instrumentingService) GetUserRights(ctx context.Context, id uuid.UUID) (rights map[string][]string, err error) {
+	defer func(begin time.Time) {
+		labels := []string{"method", "GetUserRights"}
+		s.requestCount.With(labels...).Add(1)
+		if err != nil {
+			s.requestError.With(labels...).Add(1)
+		}
+		s.requestLatency.With(labels...).Observe(time.Since(begin).Seconds())
+	}(time.Now())
+
+	rights, err = s.next.GetUserRights(ctx, id)
 	return
 }

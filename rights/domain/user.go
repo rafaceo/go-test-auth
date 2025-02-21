@@ -1,10 +1,11 @@
 package domain
 
-import "encoding/json"
+import (
+	"github.com/google/uuid"
+)
 
 type User struct {
-	ID      uint            `json:"id"`
-	Name    string          `json:"name"`
-	Context string          `json:"context"`
-	Rights  json.RawMessage `json:"rights"`
+	ID       uuid.UUID
+	Phone    string
+	Password string
 }
