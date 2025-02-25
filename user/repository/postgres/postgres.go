@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
-	repo "github.com/rafaceo/go-test-auth/rights/repository"
+	repo "github.com/rafaceo/go-test-auth/user/repository"
 )
 
 type userRepository struct {

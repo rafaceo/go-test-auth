@@ -6,12 +6,11 @@ import (
 	"github.com/jmoiron/sqlx"
 	authServicePkg "github.com/rafaceo/go-test-auth/cmd/service"
 	authHttp "github.com/rafaceo/go-test-auth/cmd/transport/https"
-	userServiceFactory "github.com/rafaceo/go-test-auth/rights"
-	userServicePkh "github.com/rafaceo/go-test-auth/rights/service"
-	userHttp "github.com/rafaceo/go-test-auth/rights/transport/http"
+	userServiceFactory "github.com/rafaceo/go-test-auth/user"
+	userHttp "github.com/rafaceo/go-test-auth/user/transport/http"
 )
 
-func CreateHTTPRouting(authService authServicePkg.AuthService, userService userServicePkh.UserService, logger log.Logger, postgres *sqlx.DB) *mux.Router {
+func CreateHTTPRouting(authService authServicePkg.AuthService, logger log.Logger, postgres *sqlx.DB) *mux.Router {
 	userServiceFac := new(userServiceFactory.ServiceFactory).CreateUserService(logger, postgres)
 	r := mux.NewRouter()
 	userHTTPHandlers := userHttp.GetUserHandler(userServiceFac, logger)

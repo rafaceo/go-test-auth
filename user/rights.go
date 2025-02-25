@@ -1,12 +1,12 @@
-package rights
+package user
 
 import (
 	"github.com/go-kit/kit/log"
 	"github.com/jmoiron/sqlx"
 	"github.com/rafaceo/go-test-auth/common-libs/instrumenting"
-	"github.com/rafaceo/go-test-auth/rights/middleware"
-	"github.com/rafaceo/go-test-auth/rights/repository/postgres"
-	"github.com/rafaceo/go-test-auth/rights/service"
+	"github.com/rafaceo/go-test-auth/user/middleware"
+	"github.com/rafaceo/go-test-auth/user/repository/postgres"
+	"github.com/rafaceo/go-test-auth/user/service"
 )
 
 type ServiceFactory struct{}

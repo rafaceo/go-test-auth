@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/metrics"
-	"github.com/rafaceo/go-test-auth/rights/service"
+	"github.com/rafaceo/go-test-auth/user/service"
 )
 
 type instrumentingService struct {

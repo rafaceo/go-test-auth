@@ -3,7 +3,7 @@ package middleware
 import (
 	"context"
 	"github.com/google/uuid"
-	"github.com/rafaceo/go-test-auth/rights/service"
+	"github.com/rafaceo/go-test-auth/user/service"
 	"time"
 
 	"github.com/go-kit/kit/log"

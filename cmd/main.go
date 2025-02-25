@@ -9,12 +9,9 @@ import (
 	"net/http"
 
 	kitlog "github.com/go-kit/kit/log"
+	_ "github.com/lib/pq"
 	authRepoPkg "github.com/rafaceo/go-test-auth/cmd/repository/postgres"
 	authServicePkg "github.com/rafaceo/go-test-auth/cmd/service"
-	userRepoPkg "github.com/rafaceo/go-test-auth/rights/repository/postgres"
-	userServicePkg "github.com/rafaceo/go-test-auth/rights/service"
-
-	_ "github.com/lib/pq"
 )
 
 func main() {
@@ -37,7 +34,6 @@ func main() {
 	}
 
 	logger := kitlog.NewLogfmtLogger(log.Writer())
-	// Создание репозитория
 
 	jwtSecret := config.AllConfigs.Env.JwtSecret
 	log.Println("jwtSecret:", jwtSecret)
@@ -47,12 +43,9 @@ func main() {
 
 	authRepo := authRepoPkg.NewAuthRepository(db)
 	authService := authServicePkg.NewAuthService(authRepo, jwtSecret)
-	userRepo := userRepoPkg.NewUserRepository(db)
-	userService := userServicePkg.NewUserService(userRepo)
 
-	router := utils.CreateHTTPRouting(authService, userService, logger, db)
+	router := utils.CreateHTTPRouting(authService, logger, db)
 
-	// Запускаем сервер
 	log.Println("Сервер запущен на порту 8080")
 	log.Fatal(http.ListenAndServe(":8080", router))
 }

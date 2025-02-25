@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/google/uuid"
-	"github.com/rafaceo/go-test-auth/rights/repository"
+	"github.com/rafaceo/go-test-auth/user/repository"
 	"golang.org/x/crypto/bcrypt"
 	"log"
 	"regexp"

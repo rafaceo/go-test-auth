@@ -12,7 +12,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/rafaceo/go-test-auth/cmd/errors_auth/encoders"
 	"github.com/rafaceo/go-test-auth/common-libs/httphandlers"
-	"github.com/rafaceo/go-test-auth/rights/service"
+	"github.com/rafaceo/go-test-auth/user/service"
 	"net/http"
 )
 
