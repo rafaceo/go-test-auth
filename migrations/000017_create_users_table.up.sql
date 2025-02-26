@@ -31,5 +31,14 @@ CREATE TABLE IF NOT EXISTS "users" (
                                      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS roles (
+                       role_id SERIAL PRIMARY KEY,
+                       role_name TEXT UNIQUE NOT NULL,
+                       role_name_ru TEXT NOT NULL,
+                       notes TEXT,
+                       rights JSONB NOT NULL -- Храним права в формате JSON
+);
+
+
 
 

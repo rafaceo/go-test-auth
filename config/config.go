@@ -64,7 +64,6 @@ type DarLogisticsConfig struct {
 var AllConfigs *Configs
 
 func LoadConfig() error {
-	// Загружаем .env
 	if err := godotenv.Load(); err != nil {
 		log.Println("Предупреждение: .env файл не найден, используем переменные среды")
 	}
