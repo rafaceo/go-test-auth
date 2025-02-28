@@ -86,7 +86,7 @@ func GetRightHandlers(serv service.RightsService, logger kitlog.Logger) []*httph
 			Methods: []string{"GET"},
 		},
 		{
-			Path:    "/api/v4/rights/{right_id}",
+			Path:    "/api/v4/rights/id/{right_id}",
 			Handler: getRightByIdHandler,
 			Methods: []string{"GET"},
 		},
@@ -104,7 +104,8 @@ type AddRightsRequest struct {
 }
 
 type AddRightsResponse struct {
-	Err error `json:"error,omitempty"`
+	Err     error  `json:"error,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 type EditRightRequest struct {
@@ -114,7 +115,8 @@ type EditRightRequest struct {
 }
 
 type EditRightResponse struct {
-	Err error `json:"error,omitempty"`
+	Err     error  `json:"error,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 type GetAllRightsRequest struct{}
@@ -146,30 +148,26 @@ type DeleteRightRequest struct {
 }
 
 type DeleteRightResponse struct {
-	Err error `json:"error,omitempty"`
+	Err     error  `json:"error,omitempty"`
+	Message string `json:"message.omitempty"`
 }
 
-// структура ответа AddRight
-
-// MakeAddRightEndpoint создаёт эндпоинт для добавления прав
 func MakeAddRightEndpoint(svc service.RightsService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(AddRightsRequest)
 		err := svc.AddRights(ctx, req.Module, req.Action)
-		return AddRightsResponse{Err: err}, err
+		return AddRightsResponse{Err: err, Message: "Права успешно созданы"}, err
 	}
 }
 
-// MakeEditRightEndpoint создаёт эндпоинт для изменения прав
 func MakeEditRightEndpoint(svc service.RightsService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(EditRightRequest)
 		err := svc.EditRight(ctx, req.ID, req.Module, req.Action)
-		return EditRightResponse{Err: err}, err
+		return EditRightResponse{Err: err, Message: "Права успешно обновлены"}, err
 	}
 }
 
-// MakeEditRightEndpoint создаёт эндпоинт для вывода прав
 func MakeGetAllRightsEndpoint(svc service.RightsService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		rights, err := svc.GetAllRights(ctx)
@@ -193,17 +191,14 @@ func MakeGetRightByIdEndpoint(svc service.RightsService) endpoint.Endpoint {
 	}
 }
 
-// MakeDeleteRightEndpoint создаёт эндпоинт для удаления прав
 func MakeDeleteRightEndpoint(svc service.RightsService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(DeleteRightRequest)
 		err := svc.DeleteRight(ctx, req.ID)
-		return DeleteRightResponse{Err: err}, err
+		return DeleteRightResponse{Err: err, Message: "Права успешно удалены"}, err
 	}
 }
 
-// DecodeAddRightRequest декодирует JSON-запрос
-// DecodeAddRightRequest декодирует запрос для добавления права (POST /api/v4/rights)
 func DecodeAddRightRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	var req AddRightsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -212,7 +207,6 @@ func DecodeAddRightRequest(_ context.Context, r *http.Request) (interface{}, err
 	return req, nil
 }
 
-// DecodeEditRightRequest декодирует запрос для редактирования права (PUT /api/v4/rights/{rights_id})
 func DecodeEditRightRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	var req EditRightRequest
 	vars := mux.Vars(r)
@@ -223,12 +217,10 @@ func DecodeEditRightRequest(_ context.Context, r *http.Request) (interface{}, er
 	return req, nil
 }
 
-// DecodeGetAllRightsRequest декодирует запрос для получения всех прав (GET /api/v4/rights)
 func DecodeGetAllRightsRequest(_ context.Context, r *http.Request) (interface{}, error) {
-	return GetAllRightsRequest{}, nil // GET-запрос, тело не требуется
+	return GetAllRightsRequest{}, nil
 }
 
-// DecodeGetRightByNameRequest декодирует запрос для получения права по имени (GET /api/v4/rights/{right_name})
 func DecodeGetRightByNameRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	var req GetRightByNameRequest
 	vars := mux.Vars(r)
@@ -236,7 +228,6 @@ func DecodeGetRightByNameRequest(_ context.Context, r *http.Request) (interface{
 	return req, nil
 }
 
-// DecodeGetRightByIdRequest декодирует запрос для получения права по ID (GET /api/v4/rights/{right_id})
 func DecodeGetRightByIdRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	var req GetRightByIdRequest
 	vars := mux.Vars(r)
@@ -247,7 +238,6 @@ func DecodeGetRightByIdRequest(_ context.Context, r *http.Request) (interface{},
 	return req, nil
 }
 
-// DecodeDeleteRightRequest декодирует запрос для удаления права (DELETE /api/v4/rights/{right_id})
 func DecodeDeleteRightRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	var req DeleteRightRequest
 	vars := mux.Vars(r)
@@ -264,7 +254,6 @@ func EncodeResponse(_ context.Context, w http.ResponseWriter, response interface
 	return encoder.Encode(response)
 }
 
-// NewLoginHandler создаёт HTTP-обработчик для логина
 func NewAddRightsHandler(rightsService service.RightsService) http.Handler {
 	return httptransport.NewServer(
 		MakeAddRightEndpoint(rightsService),

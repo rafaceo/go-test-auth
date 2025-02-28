@@ -9,7 +9,6 @@ import (
 	"github.com/lib/pq"
 	domain "github.com/rafaceo/go-test-auth/rights/domain"
 	"github.com/rafaceo/go-test-auth/rights/repository"
-	"log"
 	"strings"
 )
 
@@ -22,7 +21,7 @@ func NewPostgresRightsRepository(db *sqlx.DB) repository.RightsRepository {
 }
 
 func (r *PostgresRightsRepository) AddRights(ctx context.Context, module string, action []string) error {
-	id := uuid.New().String() // Генерация UUID
+	id := uuid.New().String()
 
 	query := `INSERT INTO rights (id, module, action, created_at, updated_at) 
 	          VALUES ($1, $2, $3, now(), now())`
@@ -92,7 +91,6 @@ func (r *PostgresRightsRepository) GetRightById(ctx context.Context, id string) 
 	var actionRaw string
 
 	query := `SELECT id, module, action, created_at, updated_at FROM rights WHERE id = $1`
-	log.Println("ID: " + id)
 
 	err := r.db.QueryRowContext(ctx, query, id).Scan(&right.ID, &right.Module, &actionRaw, &right.CreatedAt, &right.UpdatedAt)
 	if err != nil {

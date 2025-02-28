@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"github.com/rafaceo/go-test-auth/rights/domain"
 	"github.com/rafaceo/go-test-auth/rights/repository"
 )
@@ -41,7 +40,6 @@ func (s *rightsService) GetRightByName(ctx context.Context, module string) (*dom
 }
 
 func (s *rightsService) GetRightById(ctx context.Context, id string) (*domain.Right, error) {
-	fmt.Println("Searching for Right ID:", id)
 	return s.repo.GetRightById(ctx, id)
 }
 

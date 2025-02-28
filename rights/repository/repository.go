@@ -5,7 +5,6 @@ import (
 	"github.com/rafaceo/go-test-auth/rights/domain"
 )
 
-// RightsRepository — интерфейс для работы с правами
 type RightsRepository interface {
 	AddRights(ctx context.Context, module string, action []string) error
 	EditRight(ctx context.Context, id string, module string, action []string) error
