@@ -49,6 +49,12 @@ CREATE TABLE IF NOT EXISTS rights (
                                       UNIQUE (module, action)
 );
 
+CREATE TABLE IF NOT EXISTS users_contexts(
+                                             user_id UUID REFERENCES users (id) ON DELETE CASCADE,
+                                             merchant_id VARCHAR(255) NOT NULL,
+                                             global BOOLEAN DEFAULT FALSE,
+                                             UNIQUE (user_id, merchant_id)
+);
 
 
 

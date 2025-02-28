@@ -12,9 +12,11 @@ import (
 	rolesHttp "github.com/rafaceo/go-test-auth/roles/transport/http"
 	userServiceFactory "github.com/rafaceo/go-test-auth/user"
 	userHttp "github.com/rafaceo/go-test-auth/user/transport/http"
+	contextServicePkg "github.com/rafaceo/go-test-auth/user_contexts/service"
+	contextHttp "github.com/rafaceo/go-test-auth/user_contexts/transport/http"
 )
 
-func CreateHTTPRouting(authService authServicePkg.AuthService, rightsService rightsServicePkg.RightsService, logger log.Logger, postgres *sqlx.DB) *mux.Router {
+func CreateHTTPRouting(authService authServicePkg.AuthService, rightsService rightsServicePkg.RightsService, contextService contextServicePkg.UserContextService, logger log.Logger, postgres *sqlx.DB) *mux.Router {
 	userServiceFac := new(userServiceFactory.ServiceFactory).CreateUserService(logger, postgres)
 	rolesServiceFac := new(rolesServiceFactory.ServiceFactory).CreateRolesService(logger, postgres)
 	r := mux.NewRouter()
@@ -43,6 +45,13 @@ func CreateHTTPRouting(authService authServicePkg.AuthService, rightsService rig
 	if len(rightsHTTPHandlers) > 0 {
 		for _, rightsHTTPHandler := range rightsHTTPHandlers {
 			r.Handle(rightsHTTPHandler.Path, rightsHTTPHandler.Handler).Methods(rightsHTTPHandler.Methods...)
+		}
+	}
+
+	contextHTTPHandlers := contextHttp.GetUserContextHandlers(contextService, logger)
+	if len(contextHTTPHandlers) > 0 {
+		for _, contextHTTPHandler := range contextHTTPHandlers {
+			r.Handle(contextHTTPHandler.Path, contextHTTPHandler.Handler).Methods(contextHTTPHandler.Methods...)
 		}
 	}
 

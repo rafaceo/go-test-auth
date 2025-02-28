@@ -8,23 +8,6 @@ import (
 	"github.com/rafaceo/go-test-auth/roles/repository"
 )
 
-var validRoleNames = map[string]struct{}{
-	"UBER_ADMIN_ALL_ACCESS": {},
-	"UBER_ADMIN":            {},
-	"MODERATOR":             {},
-	"OPERATOR":              {},
-	"ACCOUNTANT":            {},
-	"MARKET_MANAGER":        {},
-	"CONTENT_MODERATOR":     {},
-}
-
-var validRights = map[string]struct{}{
-	"CREATE": {},
-	"UPDATE": {},
-	"READ":   {},
-	"DELETE": {},
-}
-
 type RoleService interface {
 	AddRole(ctx context.Context, roleName, roleNameRu, notes string, rights map[string][]string) error
 	EditRole(ctx context.Context, roleID int, roleName, roleNameRu, notes string, rights map[string][]string) error
@@ -44,17 +27,6 @@ func NewRoleService(repo repository.RoleRepository) RoleService {
 }
 
 func (s *roleService) AddRole(ctx context.Context, roleName, roleNameRu, notes string, rights map[string][]string) error {
-	if _, exists := validRoleNames[roleName]; !exists {
-		return errors.New("недопустимое значение role_name")
-	}
-
-	for _, actions := range rights {
-		for _, action := range actions {
-			if _, valid := validRights[action]; !valid {
-				return errors.New("недопустимое значение rights, разрешены только CREATE, UPDATE, READ, DELETE")
-			}
-		}
-	}
 
 	s.repo.AddRole(ctx, roleName, roleNameRu, notes, rights)
 

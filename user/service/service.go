@@ -11,24 +11,6 @@ import (
 	"strings"
 )
 
-var allowedSections = map[string]bool{
-	"ORDERS":        true,
-	"PRODUCTS_BASE": true,
-	"PRODUCTS":      true,
-	"PRICELIST":     true,
-	"PRODUCTS_ADD":  true,
-	"CATALOG":       true,
-	"CHAR":          true,
-	"HISTORY":       true,
-}
-
-var allowedPermissions = map[string]bool{
-	"READ":   true,
-	"CREATE": true,
-	"UPDATE": true,
-	"DELETE": true,
-}
-
 type UserService interface {
 	CreateUser(ctx context.Context, phone string, passwordHash string) error
 	EditUser(ctx context.Context, id uuid.UUID, phone, password string) error
@@ -99,21 +81,6 @@ func (s *userService) GrantRightsToUser(ctx context.Context, id uuid.UUID, right
 		return errors.New("rights cannot be empty")
 	}
 
-	// Проверяем права
-	for section, perms := range rights {
-		// Проверяем, есть ли такая секция в списке разрешённых
-		if !allowedSections[section] {
-			return errors.New("invalid section: " + section)
-		}
-
-		// Проверяем, что все права в списке разрешены
-		for _, perm := range perms {
-			if !allowedPermissions[perm] {
-				return errors.New("invalid permission: " + perm)
-			}
-		}
-	}
-
 	err := s.repo.GrantRightsToUser(ctx, id, rights)
 	if err != nil {
 		log.Printf("Error granting rights to user: %v", err)
@@ -128,18 +95,6 @@ func (s *userService) EditRightsToUser(ctx context.Context, id uuid.UUID, rights
 		return errors.New("rights cannot be empty")
 	}
 
-	for section, perms := range rights {
-		if !allowedSections[section] {
-			return errors.New("invalid section: " + section)
-		}
-
-		for _, perm := range perms {
-			if !allowedPermissions[perm] {
-				return errors.New("invalid permission: " + perm)
-			}
-		}
-	}
-
 	err := s.repo.EditRightsToUser(ctx, id, rights)
 	if err != nil {
 		log.Printf("Error granting rights to user: %v", err)
@@ -152,18 +107,6 @@ func (s *userService) EditRightsToUser(ctx context.Context, id uuid.UUID, rights
 func (s *userService) RevokeRightsFromUser(ctx context.Context, id uuid.UUID, rights map[string][]string) error {
 	if len(rights) == 0 {
 		return errors.New("rights cannot be empty")
-	}
-
-	for section, perms := range rights {
-		if !allowedSections[section] {
-			return errors.New("invalid section: " + section)
-		}
-
-		for _, perm := range perms {
-			if !allowedPermissions[perm] {
-				return errors.New("invalid permission: " + perm)
-			}
-		}
 	}
 
 	err := s.repo.RevokeRightsFromUser(ctx, id, rights)
