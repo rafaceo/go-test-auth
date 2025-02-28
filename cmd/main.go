@@ -12,6 +12,8 @@ import (
 	_ "github.com/lib/pq"
 	authRepoPkg "github.com/rafaceo/go-test-auth/cmd/repository/postgres"
 	authServicePkg "github.com/rafaceo/go-test-auth/cmd/service"
+	rightsRepoPkg "github.com/rafaceo/go-test-auth/rights/repository/postgres"
+	rightsServicePkg "github.com/rafaceo/go-test-auth/rights/service"
 )
 
 func main() {
@@ -44,7 +46,10 @@ func main() {
 	authRepo := authRepoPkg.NewAuthRepository(db)
 	authService := authServicePkg.NewAuthService(authRepo, jwtSecret)
 
-	router := utils.CreateHTTPRouting(authService, logger, db)
+	rightsRepo := rightsRepoPkg.NewPostgresRightsRepository(db)
+	rightsService := rightsServicePkg.NewRightsService(rightsRepo)
+
+	router := utils.CreateHTTPRouting(authService, rightsService, logger, db)
 
 	log.Println("Сервер запущен на порту 8080")
 	log.Fatal(http.ListenAndServe(":8080", router))

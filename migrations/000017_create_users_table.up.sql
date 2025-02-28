@@ -40,5 +40,15 @@ CREATE TABLE IF NOT EXISTS roles (
 );
 
 
+CREATE TABLE IF NOT EXISTS rights (
+                                      id UUID PRIMARY KEY,
+                                      module VARCHAR(255) NOT NULL,
+                                      action VARCHAR(255) NOT NULL,
+                                      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                      UNIQUE (module, action)
+);
+
+
 
 
